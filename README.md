@@ -1,15 +1,15 @@
-# @nterprise/web
+# @sharadkumar/web
 
 Shared web infrastructure for nterprise projects. Published to GitHub Packages.
 
 ## Modules
 
-### `@nterprise/web/appdev`
+### `@sharadkumar/web/appdev`
 
 Dev server infrastructure — port allocation, [slim.sh](https://slim.sh) HTTPS domains, git worktree detection, env file symlinking.
 
 ```typescript
-import { createDevServer } from "@nterprise/web/appdev";
+import { createDevServer } from "@sharadkumar/web/appdev";
 
 await createDevServer({
   projectName: "myapp",
@@ -25,7 +25,7 @@ await createDevServer({
 Tenant domain CLI:
 
 ```typescript
-import { createTenantSlimCli } from "@nterprise/web/appdev";
+import { createTenantSlimCli } from "@sharadkumar/web/appdev";
 
 createTenantSlimCli({ projectName: "myapp", appName: "website", defaultPort: 3001 });
 ```
@@ -52,16 +52,16 @@ createTenantSlimCli({ projectName: "myapp", appName: "website", defaultPort: 300
 Add `.npmrc` to your repo root:
 
 ```
-@nterprise:registry=https://npm.pkg.github.com
+@sharadkumar:registry=https://npm.pkg.github.com
 //npm.pkg.github.com/:_authToken=${GITHUB_TOKEN}
 ```
 
 Then install:
 
 ```bash
-bun add -D @nterprise/web
+bun add -D @sharadkumar/web
 # or
-npm install -D @nterprise/web
+npm install -D @sharadkumar/web
 ```
 
 ## Requirements
