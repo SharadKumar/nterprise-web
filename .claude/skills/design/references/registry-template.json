@@ -1,0 +1,10 @@
+{
+  "$schema": "https://ui.shadcn.com/schema/registry.json",
+  "name": "{project-slug}",
+  "homepage": "",
+  "items": [
+    {
+      "$ref": "theme.json"
+    }
+  ]
+}
