@@ -1,0 +1,57 @@
+# Claudius Configuration
+# Copy to .claudius/config.yaml and customize for your project.
+configVersion: 2
+
+engage: terminal           # terminal | chat-sdk
+deploy: none               # vercel | fly | none
+
+commands:
+  test: bun test
+  lint: bun run lint
+  build: bun run build
+
+workflow:
+  defaultBranch: main
+  squashMerge: true
+
+autonomy:
+  budgetCapUsd: 50
+  autoMerge: false
+  maxTeamSize: 3
+
+pulse:
+  enabled: false
+  intervalMinutes: 15
+  timezone: America/Los_Angeles
+  activeHours: { start: "09:00", end: "22:00" }
+  budgetCapUsd: 50
+  maxIssuesPerDay: 5
+  requireApprovalFor: [merge, deploy]
+  pauseOnFailure: true
+  maxConsecutiveFailures: 3
+  ideation:
+    maxCandidates: 10
+    maxToCreate: 3
+    autoExecuteLabels: [bug, chore, test]
+    requireApprovalLabels: [feat]
+    discussionCategory: Ideas
+
+jobs:
+  enabled: true
+  dir: .claudius/jobs
+
+slack:
+  channel: ""  # Slack channel ID for PR notifications (e.g. C1234567890)
+  # Set SLACK_BOT_TOKEN env var with your bot token
+
+owner:
+  name: ""
+  timezone: America/Los_Angeles
+  slackUserId: ""
+
+# Project goals — guide autonomous prioritization and ideation.
+# The orchestrator and pulse use these to decide what matters.
+goals: []
+  # - "Ship v1 by end of March"
+  # - "Full test coverage for auth module"
+  # - "Performance: < 200ms API response times"
