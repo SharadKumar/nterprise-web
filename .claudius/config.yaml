@@ -22,7 +22,7 @@ autonomy:
 pulse:
   enabled: false
   intervalMinutes: 15
-  timezone: America/Los_Angeles
+  # timezone: # uses machine timezone
   activeHours: { start: "09:00", end: "22:00" }
   budgetCapUsd: 50
   maxIssuesPerDay: 5
@@ -35,6 +35,7 @@ pulse:
     autoExecuteLabels: [ bug, chore, test ]
     requireApprovalLabels: [ feat ]
     discussionCategory: Ideas
+  timezone: America/Los_Angeles
 
 jobs:
   enabled: true
@@ -46,8 +47,9 @@ slack:
 
 owner:
   name: ""
-  timezone: America/Los_Angeles
+  # timezone: # uses machine timezone
   slackUserId: ""
+  timezone: America/Los_Angeles
 
 # Project goals — guide autonomous prioritization and ideation.
 # The orchestrator and pulse use these to decide what matters.
