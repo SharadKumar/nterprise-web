@@ -84,8 +84,23 @@ Issues are filtered and scored with dependency awareness:
 - **Codex issues excluded** — any issue with the `codex` label is skipped entirely
 - **Blocked issues excluded** — any issue with open `blocked-by` relationships is removed from
   candidates
+- **Recent PR guard** — any issue that already had a PR created in the last 6 hours is skipped,
+  even if the PR was closed. This prevents duplicate PRs from retry storms.
 - **Cluster momentum** — issues in partially-complete clusters get +15 priority boost
 - **Standard scoring** — label priorities, scope size, goal alignment
+
+**Check for recent PRs before claiming** — skip issues that already have PRs (open or recently closed):
+```bash
+for CANDIDATE in <issue-numbers>; do
+  RECENT_PR=$(gh pr list --repo "$(gh repo view --json nameWithOwner --jq '.nameWithOwner')" \
+    --search "Closes #$CANDIDATE in:body" --state all --json number,createdAt,state \
+    --jq "[.[] | select((.createdAt | fromdateiso8601) > (now - 21600))] | length" 2>/dev/null)
+  if [ "${RECENT_PR:-0}" -gt "0" ]; then
+    echo "Skipping #$CANDIDATE — PR created in last 6 hours"
+    continue
+  fi
+done
+```
 
 **Check attempt count before claiming** — read the existing workpad (if any) to get prior attempt count. If at max, move to Blocked instead of claiming:
 
@@ -139,6 +154,10 @@ ITEM_ID=$(gh api graphql -f query='{user(login:"SharadKumar"){projectV2(number:6
 
 ## Step 3: Develop in Parallel
 
+**CRITICAL: One issue = one developer = one PR.** Never combine multiple issues into a single
+developer agent or a single PR. Each issue gets its own isolated developer in its own worktree.
+Violating this causes review failures, duplicate PRs, and retry storms.
+
 Each developer runs in its own isolated worktree. Do NOT derive or provide branch names.
 
 **Read agent config** from `.claudius/config.yaml` (default: `claude`):
@@ -152,11 +171,12 @@ process.stdout.write(c.agent?.command ?? 'claude');
 ```
 
 **If `AGENT_COMMAND = "claude"` (default):**
-Spawn one developer agent per issue using the `Agent` tool **concurrently**
+Spawn **exactly one** developer agent per issue using the `Agent` tool **concurrently**
 (all in one tool call message), using `subagent_type: "developer"`.
+Each agent handles ONE issue only — never pass multiple issues to the same agent.
 
 **If `AGENT_COMMAND = "codex"`:**
-Spawn via Bash: `codex -p --model <agent.model> <agent.flags> "<prompt>" &` per issue.
+Spawn via Bash: `codex -p --model <agent.model> <agent.flags> "<prompt>" &` — one per issue.
 
 For each issue, each developer prompt must include:
 - Full issue body and all acceptance criteria
