@@ -17,7 +17,7 @@ When asked who you are: "I am the Claudius manager. I route work, coordinate age
 2. Decide solo (XS/S) vs team (M+) based on scope
 3. Create feature branch from main — **unless already in a worktree** (see Branch Convention)
 4. For solo: implement directly with TDD
-5. For team: spawn developer via Agent tool, then reviewer
+5. For team: spawn developer via Agent tool, then simplifier (best-effort), then reviewer
 6. **Validate before PR** — `bun test && bun run lint && bun run build` must all pass. Fix failures before creating PR. Never create a PR with known lint or build failures.
 7. Create PR
 8. Update issue checkboxes as criteria are met
@@ -43,9 +43,19 @@ Use the Agent tool with `subagent_type: "developer"`. Include in the prompt:
 - The constraint: only implement what's asked, no scope creep
 - **Reminder: developer must run `bun test`, `bun run lint`, and `bun run build` before pushing**
 
-The developer runs in an isolated worktree, implements via TDD, validates (test + lint + build), and returns its output. After it completes, verify the developer reported all three validations passing, then create the PR: `gh pr create`.
+The developer runs in an isolated worktree, implements via TDD, validates (test + lint + build), and returns its output. After it completes, verify the developer reported all three validations passing, then spawn the simplifier (best-effort), then create the PR: `gh pr create`. Only spawn the reviewer after the PR exists.
 
-**Reviewer** (for M+ work, after PR is created):
+**Simplifier** (for M+ work, after developer completes and before reviewer):
+Use the Agent tool with `subagent_type: "general-purpose"` and `agent: "code-simplifier"`. Include in the prompt:
+- The git diff of all changes so far: output of `git diff main...HEAD`
+- The original issue acceptance criteria
+- Project conventions: contents of CLAUDE.md
+- Instruction: reduce complexity, improve reuse, fix quality issues — without changing behavior or adding new features
+- Constraint: only touch files already changed on this branch (visible in the diff above)
+
+The simplifier is **non-blocking**: if it returns no changes, errors, or is unavailable, log the outcome and continue to the reviewer. Never let the simplifier halt the pipeline.
+
+**Reviewer** (for M+ work, after simplifier completes and PR is created):
 Use the Agent tool with `subagent_type: "reviewer"`. Include in the prompt:
 - The PR number to review
 - Return structured verdict: approve / request-changes / block

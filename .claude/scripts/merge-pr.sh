@@ -1,16 +1,13 @@
 #!/usr/bin/env bash
-# merge-pr.sh — Robust PR merge that works regardless of CWD or worktree state.
+# merge-pr.sh — Worktree-safe PR merge.
 #
 # Usage: bash .claude/scripts/merge-pr.sh <PR-number>
 #
 # Behavior:
-#   1. Resolve the main repo root via git-common-dir (CWD-agnostic)
-#   2. cd to main root before any git/gh operations
-#   3. Try gh pr merge (happy path — works when main is not checked out elsewhere)
-#   4. On failure, fall back to GitHub API merge + remote branch deletion
-#   5. Sync home branch inline (no external script dependency)
+#   - From a worktree: API-only merge. NEVER touches the main checkout.
+#   - From the main checkout: gh pr merge with fallback to API merge.
 #
-# Exit codes: 0 = merged + synced, 1 = merge failed, 2 = sync failed
+# Exit codes: 0 = merged, 1 = merge failed
 
 set -euo pipefail
 
@@ -20,25 +17,23 @@ if [[ -z "$PR" ]]; then
   exit 1
 fi
 
-# Resolve main repo root — works from any CWD (worktree, subdir, main checkout)
-GIT_COMMON_DIR=$(git rev-parse --git-common-dir 2>/dev/null)
-MAIN_ROOT=$(cd "$(git rev-parse --show-toplevel)" && cd "$(git rev-parse --git-common-dir)/.." && pwd)
+# Detect context BEFORE any cd
+ORIGINAL_GIT_DIR=$(git rev-parse --git-dir 2>/dev/null)
+IN_WORKTREE=false
+if [[ "$ORIGINAL_GIT_DIR" == */.git/worktrees/* ]] || [[ "$ORIGINAL_GIT_DIR" == */worktrees/* ]]; then
+  IN_WORKTREE=true
+fi
 
-cd "$MAIN_ROOT"
-
-# Get branch name before merging (needed for API fallback cleanup)
+# Get PR metadata (works from any context)
 BRANCH=$(gh pr view "$PR" --json headRefName --jq '.headRefName' 2>/dev/null)
 REPO=$(gh repo view --json nameWithOwner --jq '.nameWithOwner' 2>/dev/null)
 
 echo "Merging PR #$PR ($BRANCH) in $REPO..."
 
-# Happy path: gh pr merge handles everything locally
-if gh pr merge "$PR" --squash --delete-branch 2>/dev/null; then
-  echo "Merged via gh pr merge."
-else
-  echo "gh pr merge failed (likely worktree conflict) — falling back to API merge..."
-
-  # API merge
+if $IN_WORKTREE; then
+  # --- WORKTREE PATH ---
+  # CRITICAL: Never cd to main checkout. Never run git checkout.
+  # Use GitHub API only — zero local branch operations.
   TITLE=$(gh pr view "$PR" --json title --jq '.title')
   gh api "repos/$REPO/pulls/$PR/merge" \
     -X PUT \
@@ -46,34 +41,52 @@ else
     -f commit_title="$TITLE" \
     --silent
 
-  echo "Merged via API."
+  echo "Merged via API (worktree-safe)."
 
-  # Delete remote branch
-  if git ls-remote --exit-code origin "$BRANCH" &>/dev/null; then
-    git push origin --delete "$BRANCH" 2>/dev/null && echo "Deleted remote branch: $BRANCH" || echo "⚠ Could not delete remote branch: $BRANCH"
-  fi
-fi
+  # Delete remote branch via API (no local git operations)
+  gh api "repos/$REPO/git/refs/heads/$BRANCH" -X DELETE --silent 2>/dev/null \
+    && echo "Deleted remote branch: $BRANCH" \
+    || echo "⚠ Could not delete remote branch: $BRANCH"
 
-# Re-anchor to main root (gh pr merge may change CWD)
-cd "$MAIN_ROOT"
+  # Fetch latest main (doesn't change any local branch)
+  git fetch origin main 2>/dev/null || true
 
-# Inline sync: return to home branch
-# Detect if this script was invoked from a worktree context
-GIT_DIR=$(git rev-parse --git-dir 2>/dev/null)
-
-if [[ "$GIT_DIR" == */.git/worktrees/* ]]; then
-  WORKTREE_NAME=$(basename "$GIT_DIR")
-  HOME_BRANCH="worktree-$WORKTREE_NAME"
-  git checkout "$HOME_BRANCH" 2>/dev/null || true
-  echo "Returned to home branch: $HOME_BRANCH"
 else
-  # Root repo — return to main and sync
-  git checkout main 2>/dev/null || true
-  if git pull --ff-only origin main 2>/dev/null; then
-    echo "main synced to latest."
+  # --- MAIN CHECKOUT PATH ---
+  # Save current branch to restore after merge
+  SAVED_BRANCH=$(git branch --show-current 2>/dev/null || echo "")
+
+  # Try gh pr merge (happy path)
+  if gh pr merge "$PR" --squash --delete-branch 2>/dev/null; then
+    echo "Merged via gh pr merge."
   else
-    echo "⚠ main has diverged from origin/main — fast-forward not possible."
-    echo "  Resolve manually: git fetch origin && git rebase origin/main"
-    exit 2
+    echo "gh pr merge failed — falling back to API merge..."
+
+    TITLE=$(gh pr view "$PR" --json title --jq '.title')
+    gh api "repos/$REPO/pulls/$PR/merge" \
+      -X PUT \
+      -f merge_method=squash \
+      -f commit_title="$TITLE" \
+      --silent
+
+    echo "Merged via API."
+
+    # Delete remote branch
+    if git ls-remote --exit-code origin "$BRANCH" &>/dev/null; then
+      git push origin --delete "$BRANCH" 2>/dev/null \
+        && echo "Deleted remote branch: $BRANCH" \
+        || echo "⚠ Could not delete remote branch: $BRANCH"
+    fi
+  fi
+
+  # Sync main
+  git checkout main 2>/dev/null || true
+  git pull --ff-only origin main 2>/dev/null || {
+    echo "⚠ main has diverged — fast-forward not possible."
+  }
+
+  # Restore original branch if it still exists and wasn't the merged branch
+  if [[ -n "$SAVED_BRANCH" ]] && [[ "$SAVED_BRANCH" != "$BRANCH" ]] && [[ "$SAVED_BRANCH" != "main" ]]; then
+    git checkout "$SAVED_BRANCH" 2>/dev/null || true
   fi
 fi

@@ -105,9 +105,23 @@ Also read: `.claudius/design/tokens.css` for token values, `.claudius/design/com
 1. Write failing test from first acceptance criterion
 2. Implement until test passes
 3. Repeat for each AC
-4. Run full suite: `bun test`
+4. Invoke `/simplify` on the changed files to reduce complexity before validating (best-effort: if it returns no changes or errors, log and continue)
+5. Run full suite: `bun test`
 
-**Team (M+ — >2 files, >100 lines):** Use the Agent tool to spawn developer and reviewer agents.
+**Team (M+ — >2 files, >100 lines):** Use the Agent tool to spawn developer, simplifier, and reviewer agents in sequence.
+
+1. **Spawn builder** — developer agent implements the issue with TDD (full cycle: failing tests → implementation → passing tests)
+2. **Spawn simplifier** — after builder completes, spawn the `code-simplifier` agent (best-effort: if it returns no changes or errors, log and continue to reviewer):
+   ```
+   Agent tool, subagent_type: general-purpose, agent: code-simplifier
+   Prompt:
+     <git diff of all changes: `git diff main...HEAD`>
+     <original issue ACs>
+     Project conventions: see CLAUDE.md
+     Task: Reduce complexity, improve reuse, fix quality issues — without changing behavior or adding new features.
+     Constraint: Only touch files already changed on this branch (visible in the diff above).
+   ```
+3. **Spawn reviewer** — reviewer agent runs quality gate after simplifier completes (or after simplifier is skipped due to error)
 
 ### 5. Validate
 
