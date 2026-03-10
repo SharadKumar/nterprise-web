@@ -2,8 +2,8 @@
 # Copy to .claudius/config.yaml and customize for your project.
 configVersion: 2
 
-engage: terminal           # terminal | chat-sdk
-deploy: none               # vercel | fly | none
+engage: terminal # terminal | chat-sdk
+deploy: none # vercel | fly | none
 
 commands:
   test: bun test
@@ -26,14 +26,14 @@ pulse:
   activeHours: { start: "09:00", end: "22:00" }
   budgetCapUsd: 50
   maxIssuesPerDay: 5
-  requireApprovalFor: [merge, deploy]
+  requireApprovalFor: [ merge, deploy ]
   pauseOnFailure: true
   maxConsecutiveFailures: 3
   ideation:
     maxCandidates: 10
     maxToCreate: 3
-    autoExecuteLabels: [bug, chore, test]
-    requireApprovalLabels: [feat]
+    autoExecuteLabels: [ bug, chore, test ]
+    requireApprovalLabels: [ feat ]
     discussionCategory: Ideas
 
 jobs:
@@ -41,7 +41,7 @@ jobs:
   dir: .claudius/jobs
 
 slack:
-  channel: ""  # Slack channel ID for PR notifications (e.g. C1234567890)
+  channel: "" # Slack channel ID for PR notifications (e.g. C1234567890)
   # Set SLACK_BOT_TOKEN env var with your bot token
 
 owner:
@@ -55,3 +55,7 @@ goals: []
   # - "Ship v1 by end of March"
   # - "Full test coverage for auth module"
   # - "Performance: < 200ms API response times"
+studio:
+  enabled: true
+  slimEnabled: true
+  port: 0
