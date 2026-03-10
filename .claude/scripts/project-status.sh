@@ -22,19 +22,19 @@ EXECUTION_FIELD="PVTSSF_lAHOAFO-EM4BRTW5zg_Lokk"
 
 # Resolve Status option ID
 case "$STATUS" in
-  "Todo")           STATUS_OPT="6ed537f9" ;;
-  "In Progress")    STATUS_OPT="0d583361" ;;
-  "Under Review")   STATUS_OPT="173633ca" ;;
-  "Blocked")        STATUS_OPT="d239ddb3" ;;
+  "Todo")           STATUS_OPT="59debf59" ;;
+  "In Progress")    STATUS_OPT="6e8991c5" ;;
+  "Under Review")   STATUS_OPT="a6a6dc32" ;;
+  "Blocked")        STATUS_OPT="f77fb75d" ;;
   *) echo "[project-status] Unknown status: $STATUS" >&2; exit 1 ;;
 esac
 
 # Resolve Execution option ID
 case "$EXECUTION" in
-  "Queued")   EXECUTION_OPT="f00eea4e" ;;
-  "Running")  EXECUTION_OPT="14585208" ;;
-  "Review")   EXECUTION_OPT="8e0939cc" ;;
-  "Blocked")  EXECUTION_OPT="65e212b0" ;;
+  "Queued")   EXECUTION_OPT="b2b4bd91" ;;
+  "Running")  EXECUTION_OPT="e632d881" ;;
+  "Review")   EXECUTION_OPT="4098f421" ;;
+  "Blocked")  EXECUTION_OPT="70bc5d52" ;;
   *) echo "[project-status] Unknown execution: $EXECUTION" >&2; exit 1 ;;
 esac
 
