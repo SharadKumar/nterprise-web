@@ -41,7 +41,6 @@ gh pr list --search "Closes #<N> in:body" --state open --json number --limit 1
 If no open PR found → stale claim → restore to ready:
 ```bash
 gh issue edit <N> --remove-label "in-progress,claude" --add-label "ready"
-bash .claude/scripts/project-status.sh <N> "Todo" "Queued"
 ```
 
 ## Guard Checks
@@ -63,25 +62,10 @@ tail -20 .claudius/job-runs.jsonl
 Before picking new work, merge any open XS/S/M PRs with passing CI:
 
 ```bash
-gh pr list --json number,title,headRefName,statusCheckRollup,mergeable --limit 20
+gh pr list --json number,title,headRefName,statusCheckRollup --limit 20
+bash .claude/scripts/merge-pr.sh <N>
+gh issue close <issue-N> --comment "Closed by PR #<N>."
 ```
-
-For each PR with all checks passing:
-1. **Check mergeability** — if `mergeable` is `CONFLICTING`, try rebasing first:
-   ```bash
-   gh pr view <N> --json mergeable --jq '.mergeable'
-   # If CONFLICTING → attempt rebase:
-   git fetch origin main
-   git checkout <branch>
-   git rebase origin/main
-   git push --force-with-lease
-   # If rebase fails: skip this PR, leave for human or next cycle
-   ```
-2. **Merge** — only if mergeable:
-   ```bash
-   bash .claude/scripts/merge-pr.sh <N>
-   gh issue close <issue-N> --comment "Closed by PR #<N>."
-   ```
 
 ## Step 2: Pick Top-3 Issues
 
@@ -113,7 +97,13 @@ PRIOR_ATTEMPTS=$(gh issue view <N> --json comments \
 if [ "${PRIOR_ATTEMPTS:-0}" -ge "$MAX_ATTEMPTS" ]; then
   gh issue edit <N> --remove-label "ready" --add-label "blocked"
   gh issue comment <N> --body "Claudius: exceeded ${MAX_ATTEMPTS} build attempts. Needs human review before retrying."
-  bash .claude/scripts/project-status.sh <N> "Blocked" "Blocked"
+  REPO_NAME=$(gh repo view --json nameWithOwner --jq '.nameWithOwner')
+  ITEM_ID=$(gh api graphql -f query='{user(login:"SharadKumar"){projectV2(number:6){items(first:100){nodes{id content{...on Issue{number repository{nameWithOwner}}}}}}}}'  \
+    --jq ".data.user.projectV2.items.nodes[] | select(.content.number == <N> and .content.repository.nameWithOwner == \"$REPO_NAME\") | .id" 2>/dev/null | head -1)
+  [ -n "$ITEM_ID" ] && gh project item-edit --id "$ITEM_ID" \
+    --project-id "PVT_kwHOAFO-EM4BRTW5" \
+    --field-id "PVTSSF_lAHOAFO-EM4BRTW5zg_K3tE" \
+    --single-select-option-id "d239ddb3" 2>/dev/null || true
   # skip this issue — continue to next candidate
 fi
 ```
@@ -133,9 +123,18 @@ NEW_ATTEMPTS=$(( ${PRIOR_ATTEMPTS:-0} + 1 ))
 bash .claude/scripts/workpad-upsert.sh <N> "🔄 Claimed — reading issue" "TBD" "- [ ] (loading)" "pending" "$NEW_ATTEMPTS"
 ```
 
-**Update Project #6 → In Progress / Running** (best-effort):
+**Update Project #6 Status → In Progress** — add to project if needed, then set status:
+
 ```bash
-bash .claude/scripts/project-status.sh <N> "In Progress" "Running"
+ISSUE_URL=$(gh issue view <N> --json url --jq '.url')
+REPO_NAME=$(gh repo view --json nameWithOwner --jq '.nameWithOwner')
+gh project item-add 6 --owner SharadKumar --url "$ISSUE_URL" 2>/dev/null || true
+ITEM_ID=$(gh api graphql -f query='{user(login:"SharadKumar"){projectV2(number:6){items(first:100){nodes{id content{...on Issue{number repository{nameWithOwner}}}}}}}}'  \
+  --jq ".data.user.projectV2.items.nodes[] | select(.content.number == <N> and .content.repository.nameWithOwner == \"$REPO_NAME\") | .id" 2>/dev/null | head -1)
+[ -n "$ITEM_ID" ] && gh project item-edit --id "$ITEM_ID" \
+  --project-id "PVT_kwHOAFO-EM4BRTW5" \
+  --field-id "PVTSSF_lAHOAFO-EM4BRTW5zg_K3tE" \
+  --single-select-option-id "0d583361" 2>/dev/null || true
 ```
 
 ## Step 3: Develop in Parallel
@@ -178,7 +177,6 @@ Wait for all developer agents to complete before proceeding.
 ```bash
 gh issue edit <N> --remove-label "in-progress,claude" --add-label "ready"
 gh issue comment <N> --body "Worker: developer failed. Restored to ready queue."
-bash .claude/scripts/project-status.sh <N> "Todo" "Queued"
 ```
 Remove it from the active set and continue with the rest.
 
@@ -246,9 +244,15 @@ if [ -n "$SLACK_CHANNEL" ]; then
 fi
 ```
 
-**Update Project #6 → Under Review / Review** (best-effort):
+**Update Project #6 Status → Under Review** (best-effort):
 ```bash
-bash .claude/scripts/project-status.sh <N> "Under Review" "Review"
+REPO_NAME=$(gh repo view --json nameWithOwner --jq '.nameWithOwner')
+ITEM_ID=$(gh api graphql -f query='{user(login:"SharadKumar"){projectV2(number:6){items(first:100){nodes{id content{...on Issue{number repository{nameWithOwner}}}}}}}}'  \
+  --jq ".data.user.projectV2.items.nodes[] | select(.content.number == <N> and .content.repository.nameWithOwner == \"$REPO_NAME\") | .id" 2>/dev/null | head -1)
+[ -n "$ITEM_ID" ] && gh project item-edit --id "$ITEM_ID" \
+  --project-id "PVT_kwHOAFO-EM4BRTW5" \
+  --field-id "PVTSSF_lAHOAFO-EM4BRTW5zg_K3tE" \
+  --single-select-option-id "173633ca" 2>/dev/null || true
 ```
 
 ## Step 5: Review in Parallel
@@ -272,7 +276,17 @@ Wait for all reviewer agents to complete.
 ```bash
 gh issue edit <N> --remove-label "in-progress,claude" --add-label "ready"
 gh issue comment <N> --body "Worker: reviewer blocked. Reason: <reason>."
-bash .claude/scripts/project-status.sh <N> "Todo" "Queued"
+```
+
+**Update Project #6 Status → Blocked** (best-effort):
+```bash
+REPO_NAME=$(gh repo view --json nameWithOwner --jq '.nameWithOwner')
+ITEM_ID=$(gh api graphql -f query='{user(login:"SharadKumar"){projectV2(number:6){items(first:100){nodes{id content{...on Issue{number repository{nameWithOwner}}}}}}}}'  \
+  --jq ".data.user.projectV2.items.nodes[] | select(.content.number == <N> and .content.repository.nameWithOwner == \"$REPO_NAME\") | .id" 2>/dev/null | head -1)
+[ -n "$ITEM_ID" ] && gh project item-edit --id "$ITEM_ID" \
+  --project-id "PVT_kwHOAFO-EM4BRTW5" \
+  --field-id "PVTSSF_lAHOAFO-EM4BRTW5zg_K3tE" \
+  --single-select-option-id "d239ddb3" 2>/dev/null || true
 ```
 
 ## Step 6: Merge & Record
@@ -283,7 +297,16 @@ bash .claude/scripts/merge-pr.sh <PR-number>
 gh issue close <N> --comment "Closed by PR #<M>."
 ```
 
-Closing the issue removes it from the active Project #6 board — no explicit "Done" status needed.
+**Update Project #6 Status → Done** (best-effort):
+```bash
+REPO_NAME=$(gh repo view --json nameWithOwner --jq '.nameWithOwner')
+ITEM_ID=$(gh api graphql -f query='{user(login:"SharadKumar"){projectV2(number:6){items(first:100){nodes{id content{...on Issue{number repository{nameWithOwner}}}}}}}}'  \
+  --jq ".data.user.projectV2.items.nodes[] | select(.content.number == <N> and .content.repository.nameWithOwner == \"$REPO_NAME\") | .id" 2>/dev/null | head -1)
+[ -n "$ITEM_ID" ] && gh project item-edit --id "$ITEM_ID" \
+  --project-id "PVT_kwHOAFO-EM4BRTW5" \
+  --field-id "PVTSSF_lAHOAFO-EM4BRTW5zg_K3tE" \
+  --single-select-option-id "b60a81d0" 2>/dev/null || true
+```
 
 After each merge, reply in the PR's Slack thread (best-effort):
 ```bash

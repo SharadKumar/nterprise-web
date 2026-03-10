@@ -25,12 +25,15 @@ Every change that can be tested locally MUST be tested locally before committing
 
 ### dist/ freshness
 
-`dist/` is gitignored and built at install time via the `prepare` script. Do NOT commit `dist/` — it is a build artifact.
+`dist/` is committed to the repo. The `prepare` script skips building when `dist/` already exists. This means stale `dist/` = users run old code.
 
-**After changing any `src/` file, always verify the build succeeds:**
+**After changing any `src/` file, always rebuild and commit dist/:**
 ```bash
-bun run build
+bun run build:server
+git add dist/
 ```
+
+If you forget, `npx github:SharadKumar/claudius` will silently run old code — the most dangerous kind of bug.
 
 ### Anti-patterns
 
@@ -38,4 +41,4 @@ bun run build
 - Assuming package managers behave identically (they don't — especially for private repos, workspaces, lockfiles)
 - Shipping a fix for a fix for a fix instead of reverting and getting it right once
 - Trusting `bun run build` as sufficient validation when the change is user-facing
-- Committing `dist/` — it is gitignored and built at install time
+- Changing `src/` without rebuilding and committing `dist/`
