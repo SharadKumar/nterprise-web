@@ -1,0 +1,5 @@
+{"jobName":"pulse","startedAt":"2026-03-10T10:30:00.019Z","completedAt":"2026-03-10T10:30:00.019Z","success":false,"error":"Guardrails blocked: Pulse disabled"}
+{"jobName":"pulse","startedAt":"2026-03-10T10:45:00.038Z","completedAt":"2026-03-10T10:45:00.038Z","success":false,"error":"Guardrails blocked: Pulse disabled"}
+{"jobName":"pulse","startedAt":"2026-03-10T11:00:00.034Z","completedAt":"2026-03-10T11:00:00.034Z","success":false,"error":"Guardrails blocked: Pulse disabled"}
+{"jobName":"pulse","startedAt":"2026-03-10T11:15:00.080Z","completedAt":"2026-03-10T11:15:00.080Z","success":false,"error":"Guardrails blocked: Pulse disabled"}
+{"jobName":"pulse","startedAt":"2026-03-10T11:30:00.009Z","completedAt":"2026-03-10T11:30:00.009Z","success":false,"error":"Guardrails blocked: Pulse disabled"}

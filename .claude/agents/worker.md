@@ -93,20 +93,47 @@ gh issue edit <N> --add-label "in-progress,claude" --remove-label "ready"
 gh issue view <N>   # read full body + acceptance criteria
 ```
 
+**Post workpad comment** — after claiming each issue, create (or update) a persistent workpad
+comment using the `<!-- claudius:workpad -->` marker. This gives reviewers a live trace of
+what's happening without reading logs:
+
+```bash
+bash .claude/scripts/workpad-upsert.sh <N> "🔄 Claimed — reading issue"
+```
+
 ## Step 3: Develop in Parallel
 
 Each developer runs in its own isolated worktree. Do NOT derive or provide branch names.
 
-Spawn one developer agent per issue using the `Agent` tool **concurrently**
-(all in one tool call message).
+**Read agent config** from `.claudius/config.yaml` (default: `claude`):
+```bash
+AGENT_COMMAND=$(bun -e "
+import { parse } from 'yaml';
+import { readFileSync } from 'fs';
+const c = parse(readFileSync('.claudius/config.yaml', 'utf8'));
+process.stdout.write(c.agent?.command ?? 'claude');
+" 2>/dev/null || echo 'claude')
+```
 
-For each issue, use `subagent_type: "developer"`. Each developer prompt must include:
+**If `AGENT_COMMAND = "claude"` (default):**
+Spawn one developer agent per issue using the `Agent` tool **concurrently**
+(all in one tool call message), using `subagent_type: "developer"`.
+
+**If `AGENT_COMMAND = "codex"`:**
+Spawn via Bash: `codex -p --model <agent.model> <agent.flags> "<prompt>" &` per issue.
+
+For each issue, each developer prompt must include:
 - Full issue body and all acceptance criteria
 - Issue number for commit message format (`type(scope): description (#N)`)
 - Constraint: implement only what the issue asks, no scope creep
 - Instruction: use your current branch (the worktree branch), do NOT create a new branch.
   Implement, commit, push with `git push -u origin HEAD`, then report the branch name you
   pushed. Do not create the PR (worker creates PRs).
+- Workpad: update the `<!-- claudius:workpad -->` comment on the issue at meaningful steps —
+  after forming a plan, after each AC is checked off, after validation runs. Use
+  `bash .claude/scripts/workpad-upsert.sh <N> "<status>"` to update it. In your final output,
+  include a structured **handoff summary** (what was built, how to test, AC coverage) so the
+  worker can post it to the PR.
 
 Wait for all developer agents to complete before proceeding.
 
@@ -143,6 +170,21 @@ Closes #N
 
 ## Test Plan
 - [ ] <scenario>
+EOF
+)"
+```
+
+**Post handoff comment** — after each `gh pr create`, add a structured handoff to the PR
+using the `<!-- claudius:handoff -->` marker (pull content from developer's handoff summary):
+
+```bash
+gh pr comment <PR> --body "$(cat <<'EOF'
+<!-- claudius:handoff -->
+**Handoff** · PR ready for review
+**What changed:** <from developer handoff summary>
+**How to test:** <from developer handoff summary>
+**AC coverage:** ✅ all / ⚠️ partial / ❌ gap noted
+**Notes:** <any gaps, follow-ups created>
 EOF
 )"
 ```

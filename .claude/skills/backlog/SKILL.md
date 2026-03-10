@@ -26,9 +26,10 @@ This is **Stage 4** of the development lifecycle (/product → /solution → /de
 /backlog --groom-backlog        → full backlog audit with stale detection
 /backlog --type:debt "refactor" → capture with type hint
 /backlog --critical "fix auth"  → capture as critical
+/backlog --global               → cross-repo queue from Project #6 (global dir only)
 ```
 
-## Three Responsibilities
+## Four Responsibilities
 
 ### 1. Plan — Decompose Specs into Work Items
 
@@ -212,6 +213,49 @@ bash .claude/scripts/github-relationships.sh list-blocked-by <task>
 ```
 
 These use GitHub's GraphQL API (requires `gh` CLI authenticated). Errors are non-fatal — log and continue.
+
+### 4. Global Cross-Repo Queue — `--global`
+
+Available from the global orchestration directory only (where `.claudius/config.yaml` has a `repos[]` array). Uses Project #6 as the canonical cross-repo backlog.
+
+**When:** `/backlog --global`
+
+**Flow:**
+
+1. **Read global config** — load repos[] from `.claudius/config.yaml` at the global dir:
+   ```bash
+   cat .claudius/config.yaml   # get repos[] array with github + path per repo
+   ```
+
+2. **Query Project #6** — fetch all Todo items not tagged `codex`:
+   ```bash
+   gh project item-list 6 --owner SharadKumar --format json --limit 100 \
+     | jq '[.items[] | select(.status == "Todo") | {title: .title, repo: .content.repository, url: .content.url, number: .content.number}]'
+   ```
+
+3. **Group by repo** — partition results by Repository field value.
+
+4. **Display prioritized queue** — show cross-repo summary:
+   ```
+   Cross-repo backlog (Project #6 — Status: Todo, no codex label)
+
+   auctionomy-app  3 items ready
+   adalati         1 item ready
+   claudius        2 items ready
+
+   Total: 6 items across 3 repos
+   ```
+   List each item with its issue number, title, and repo.
+
+5. **Enter PlanMode for grooming** — ask via `AskUserQuestion` if the user wants to reorder or add items. In PlanMode, use `gh project item-edit` to update Status or Execution fields, or use `gh issue create` to add new items.
+
+**Rules for `--global`:**
+- Only run from the global orchestration dir — skip if no `repos[]` in config
+- Never create or label issues `ready` here — that's per-repo backlog's job
+- Read-only view by default; PlanMode is opt-in for grooming
+- Project #6 field IDs are in the repo's `.claudius/config.yaml` comments
+
+---
 
 ## Rules
 
