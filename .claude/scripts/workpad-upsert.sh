@@ -3,7 +3,7 @@
 # on a GitHub issue. Idempotent: finds existing workpad comment and patches it in-place.
 #
 # Usage:
-#   bash .claude/scripts/workpad-upsert.sh <issue-number> <status> [plan] [acs] [validation]
+#   bash .claude/scripts/workpad-upsert.sh <issue-number> <status> [plan] [acs] [validation] [attempts]
 #
 # Arguments:
 #   issue-number  GitHub issue number (required)
@@ -11,10 +11,11 @@
 #   plan          Plan text (optional, default: "TBD")
 #   acs           ACs markdown (optional, default: "- [ ] (loading from issue)")
 #   validation    Validation status (optional, default: "pending")
+#   attempts      Build attempt count (optional, default: 1)
 #
 # Example:
 #   bash .claude/scripts/workpad-upsert.sh 42 "🔄 Claimed — reading issue"
-#   bash .claude/scripts/workpad-upsert.sh 42 "✅ Implementation complete" "Added auth middleware" "- [x] Token validated" "bun test: 45/45 pass"
+#   bash .claude/scripts/workpad-upsert.sh 42 "✅ Implementation complete" "Added auth middleware" "- [x] Token validated" "bun test: 45/45 pass" 2
 #
 # Run from the repo root (where gh is authenticated).
 set -euo pipefail
@@ -24,11 +25,13 @@ STATUS="${2:?'status required'}"
 PLAN="${3:-TBD}"
 ACS="${4:-- [ ] (loading from issue)}"
 VALIDATION="${5:-pending}"
+ATTEMPTS="${6:-1}"
 TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
 BODY="<!-- claudius:workpad -->
 **Workpad** · Updated: ${TIMESTAMP}
 **Status:** ${STATUS}
+**Attempts:** ${ATTEMPTS}
 **Plan:** ${PLAN}
 **ACs:**
 ${ACS}

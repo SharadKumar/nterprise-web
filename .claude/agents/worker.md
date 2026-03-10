@@ -87,6 +87,27 @@ Issues are filtered and scored with dependency awareness:
 - **Cluster momentum** — issues in partially-complete clusters get +15 priority boost
 - **Standard scoring** — label priorities, scope size, goal alignment
 
+**Check attempt count before claiming** — read the existing workpad (if any) to get prior attempt count. If at max, move to Blocked instead of claiming:
+
+```bash
+MAX_ATTEMPTS=3
+PRIOR_ATTEMPTS=$(gh issue view <N> --json comments \
+  --jq '[.comments[].body | select(contains("claudius:workpad"))] | last // ""' 2>/dev/null \
+  | grep -o 'Attempts: [0-9]*' | grep -o '[0-9]*' || echo "0")
+if [ "${PRIOR_ATTEMPTS:-0}" -ge "$MAX_ATTEMPTS" ]; then
+  gh issue edit <N> --remove-label "ready" --add-label "blocked"
+  gh issue comment <N> --body "Claudius: exceeded ${MAX_ATTEMPTS} build attempts. Needs human review before retrying."
+  REPO_NAME=$(gh repo view --json nameWithOwner --jq '.nameWithOwner')
+  ITEM_ID=$(gh api graphql -f query='{user(login:"SharadKumar"){projectV2(number:6){items(first:100){nodes{id content{...on Issue{number repository{nameWithOwner}}}}}}}}'  \
+    --jq ".data.user.projectV2.items.nodes[] | select(.content.number == <N> and .content.repository.nameWithOwner == \"$REPO_NAME\") | .id" 2>/dev/null | head -1)
+  [ -n "$ITEM_ID" ] && gh project item-edit --id "$ITEM_ID" \
+    --project-id "PVT_kwHOAFO-EM4BRTW5" \
+    --field-id "PVTSSF_lAHOAFO-EM4BRTW5zg_K3tE" \
+    --single-select-option-id "d239ddb3" 2>/dev/null || true
+  # skip this issue — continue to next candidate
+fi
+```
+
 **Claim atomically** (add both `in-progress` and `claude` labels):
 ```bash
 gh issue edit <N> --add-label "in-progress,claude" --remove-label "ready"
@@ -95,10 +116,25 @@ gh issue view <N>   # read full body + acceptance criteria
 
 **Post workpad comment** — after claiming each issue, create (or update) a persistent workpad
 comment using the `<!-- claudius:workpad -->` marker. This gives reviewers a live trace of
-what's happening without reading logs:
+what's happening without reading logs. Pass the incremented attempt count:
 
 ```bash
-bash .claude/scripts/workpad-upsert.sh <N> "🔄 Claimed — reading issue"
+NEW_ATTEMPTS=$(( ${PRIOR_ATTEMPTS:-0} + 1 ))
+bash .claude/scripts/workpad-upsert.sh <N> "🔄 Claimed — reading issue" "TBD" "- [ ] (loading)" "pending" "$NEW_ATTEMPTS"
+```
+
+**Update Project #6 Status → In Progress** — add to project if needed, then set status:
+
+```bash
+ISSUE_URL=$(gh issue view <N> --json url --jq '.url')
+REPO_NAME=$(gh repo view --json nameWithOwner --jq '.nameWithOwner')
+gh project item-add 6 --owner SharadKumar --url "$ISSUE_URL" 2>/dev/null || true
+ITEM_ID=$(gh api graphql -f query='{user(login:"SharadKumar"){projectV2(number:6){items(first:100){nodes{id content{...on Issue{number repository{nameWithOwner}}}}}}}}'  \
+  --jq ".data.user.projectV2.items.nodes[] | select(.content.number == <N> and .content.repository.nameWithOwner == \"$REPO_NAME\") | .id" 2>/dev/null | head -1)
+[ -n "$ITEM_ID" ] && gh project item-edit --id "$ITEM_ID" \
+  --project-id "PVT_kwHOAFO-EM4BRTW5" \
+  --field-id "PVTSSF_lAHOAFO-EM4BRTW5zg_K3tE" \
+  --single-select-option-id "0d583361" 2>/dev/null || true
 ```
 
 ## Step 3: Develop in Parallel
@@ -208,6 +244,17 @@ if [ -n "$SLACK_CHANNEL" ]; then
 fi
 ```
 
+**Update Project #6 Status → Under Review** (best-effort):
+```bash
+REPO_NAME=$(gh repo view --json nameWithOwner --jq '.nameWithOwner')
+ITEM_ID=$(gh api graphql -f query='{user(login:"SharadKumar"){projectV2(number:6){items(first:100){nodes{id content{...on Issue{number repository{nameWithOwner}}}}}}}}'  \
+  --jq ".data.user.projectV2.items.nodes[] | select(.content.number == <N> and .content.repository.nameWithOwner == \"$REPO_NAME\") | .id" 2>/dev/null | head -1)
+[ -n "$ITEM_ID" ] && gh project item-edit --id "$ITEM_ID" \
+  --project-id "PVT_kwHOAFO-EM4BRTW5" \
+  --field-id "PVTSSF_lAHOAFO-EM4BRTW5zg_K3tE" \
+  --single-select-option-id "173633ca" 2>/dev/null || true
+```
+
 ## Step 5: Review in Parallel
 
 Spawn one reviewer agent per PR using the `Agent` tool **concurrently** (all in one message).
@@ -231,12 +278,34 @@ gh issue edit <N> --remove-label "in-progress,claude" --add-label "ready"
 gh issue comment <N> --body "Worker: reviewer blocked. Reason: <reason>."
 ```
 
+**Update Project #6 Status → Blocked** (best-effort):
+```bash
+REPO_NAME=$(gh repo view --json nameWithOwner --jq '.nameWithOwner')
+ITEM_ID=$(gh api graphql -f query='{user(login:"SharadKumar"){projectV2(number:6){items(first:100){nodes{id content{...on Issue{number repository{nameWithOwner}}}}}}}}'  \
+  --jq ".data.user.projectV2.items.nodes[] | select(.content.number == <N> and .content.repository.nameWithOwner == \"$REPO_NAME\") | .id" 2>/dev/null | head -1)
+[ -n "$ITEM_ID" ] && gh project item-edit --id "$ITEM_ID" \
+  --project-id "PVT_kwHOAFO-EM4BRTW5" \
+  --field-id "PVTSSF_lAHOAFO-EM4BRTW5zg_K3tE" \
+  --single-select-option-id "d239ddb3" 2>/dev/null || true
+```
+
 ## Step 6: Merge & Record
 
 For each approved PR:
 ```bash
 bash .claude/scripts/merge-pr.sh <PR-number>
 gh issue close <N> --comment "Closed by PR #<M>."
+```
+
+**Update Project #6 Status → Done** (best-effort):
+```bash
+REPO_NAME=$(gh repo view --json nameWithOwner --jq '.nameWithOwner')
+ITEM_ID=$(gh api graphql -f query='{user(login:"SharadKumar"){projectV2(number:6){items(first:100){nodes{id content{...on Issue{number repository{nameWithOwner}}}}}}}}'  \
+  --jq ".data.user.projectV2.items.nodes[] | select(.content.number == <N> and .content.repository.nameWithOwner == \"$REPO_NAME\") | .id" 2>/dev/null | head -1)
+[ -n "$ITEM_ID" ] && gh project item-edit --id "$ITEM_ID" \
+  --project-id "PVT_kwHOAFO-EM4BRTW5" \
+  --field-id "PVTSSF_lAHOAFO-EM4BRTW5zg_K3tE" \
+  --single-select-option-id "b60a81d0" 2>/dev/null || true
 ```
 
 After each merge, reply in the PR's Slack thread (best-effort):
@@ -265,6 +334,23 @@ After all merges, remove stale agent sub-worktrees (best-effort):
 git worktree list --porcelain | grep '^worktree' | grep 'agent-' | awk '{print $2}' | while read p; do
   git worktree remove --force "$p" 2>/dev/null && echo "Removed $p" || true
 done
+```
+
+**Remove this repo's active-builds.jsonl entry** — the global dir was passed in the prompt as `Global dir: <path>`. Extract and clean up:
+```bash
+GLOBAL_DIR="<path-from-prompt>"   # absolute global dir path from the worker prompt
+REPO_NAME="<this-repo-name>"       # the repo name sleepless used in the entry
+node -e "
+const fs = require('fs');
+const path = require('path');
+const file = path.join('$GLOBAL_DIR', '.claudius/active-builds.jsonl');
+if (!fs.existsSync(file)) process.exit(0);
+const lines = fs.readFileSync(file, 'utf8').split('\n').filter(Boolean);
+const kept = lines.filter(l => {
+  try { return JSON.parse(l).repo !== '$REPO_NAME'; } catch { return true; }
+});
+fs.writeFileSync(file, kept.join('\n') + (kept.length ? '\n' : ''));
+" 2>/dev/null || true
 ```
 
 Exit with `WORKER_OK`.
