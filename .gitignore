@@ -137,3 +137,16 @@ dist
 # Vite logs files
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
+
+# Claudius runtime state
+.claudius/daemon.log
+.claudius/daemon.error.log
+.claudius/daemon.lock
+.claudius/costs.jsonl
+.claudius/session-state.md
+.claudius/job-runs.jsonl
+.claudius/studio.pid
+.claudius/studio-start.log
+
+# Claude Code
+.claude/worktrees/
