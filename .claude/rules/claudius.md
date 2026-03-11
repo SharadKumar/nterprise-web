@@ -52,18 +52,6 @@ Use claudius skills instead of doing things manually:
 - After `/clear` or new session: read session-state.md, config.yaml goals, then resume.
 - Don't ask "what should I do next?" — check goals and backlog, pick the highest priority.
 
-## Pulse (Autonomous Work)
-
-The pulse system enables continuous autonomous development.
-
-- **`/pulse`** — show status (ready issues, open PRs, budget).
-- **`/pulse run`** — execute one heartbeat: check constraints → pick a `ready` issue → `/build` it.
-- **`/pulse ideate`** — brainstorm improvements from goals and codebase, create issues.
-- **`claudius daemon`** — runs pulse on a timer (config: `pulse.intervalMinutes`, `pulse.activeHours`).
-- Always check budget (`autonomy.budgetCapUsd`) and active hours before autonomous work.
-- Respect `pulse.requireApprovalFor` — some actions (merge, deploy) may need human sign-off.
-- On 3 consecutive failures, pause and escalate (`pulse.pauseOnFailure`).
-
 ## What to Commit
 
 Commit everything `claudius init` distributes — skills, rules, hooks, agents, config. These are small markdown files, not generated artifacts. Team members get full CC context on clone without running init.
