@@ -39,7 +39,7 @@ When uncertain, go larger.
 **Developer** (for M+ work):
 Use the Agent tool with `subagent_type: "developer"`. Include in the prompt:
 - The full issue body with acceptance criteria
-- The branch name to work on
+- Instruction: use your current worktree branch — do NOT create a new branch
 - The constraint: only implement what's asked, no scope creep
 - **Reminder: developer must run `bun test`, `bun run lint`, and `bun run build` before pushing**
 
@@ -73,8 +73,8 @@ if [ -n "$SLACK_CHANNEL" ]; then
   PR_URL=$(gh pr view $PR_NUMBER --json url --jq '.url')
   THREAD_REF=$(bun .claude/scripts/slack.ts send \
     --channel "$SLACK_CHANNEL" \
-    --text "🔍 *PR #$PR_NUMBER ready for review* — $PR_TITLE  $PR_URL") \
-    && gh pr comment $PR_NUMBER --body "<!-- slack-thread: $THREAD_REF -->" \
+    --text "🔍 *PR #$PR_NUMBER ready for review* — $PR_TITLE  $PR_URL" | tail -1) \
+    && printf '<!-- slack-thread: %s -->' "$THREAD_REF" | gh pr comment $PR_NUMBER --body-file - \
     || echo "[slack] notification skipped"
 fi
 ```
@@ -82,8 +82,8 @@ fi
 **After every `bash .claude/scripts/merge-pr.sh $PR_NUMBER`** — reply in the PR's thread:
 ```bash
 THREAD_REF=$(gh pr view $PR_NUMBER --json comments \
-  --jq '[.comments[].body | select(startswith("<!-- slack-thread:"))] | first' \
-  | sed 's/<!-- slack-thread: //;s/ -->//')
+  --jq '[.comments[].body | select(contains("slack-thread:"))] | first' \
+  | grep -oE '[A-Z][A-Z0-9]{8,}:[0-9]+\.[0-9]+')
 if [ -n "$THREAD_REF" ] && [ "$THREAD_REF" != "null" ]; then
   bun .claude/scripts/slack.ts reply \
     --thread "$THREAD_REF" \

@@ -1,51 +1,44 @@
 #!/usr/bin/env bash
-# workpad-upsert.sh — posts or updates the <!-- claudius:workpad --> sticky comment
-# on a GitHub issue. Idempotent: finds existing workpad comment and patches it in-place.
+# workpad-upsert.sh — posts or updates the <!-- claudius:workpad --> sticky comment.
+# Idempotent: finds existing workpad comment and patches it in-place.
 #
 # Usage:
-#   bash .claude/scripts/workpad-upsert.sh <issue-number> <status> [plan] [acs] [validation] [attempts]
+#   bash .claude/scripts/workpad-upsert.sh <issue-number> "<status>" ["<body>"]
 #
 # Arguments:
 #   issue-number  GitHub issue number (required)
-#   status        Status line, e.g. "🔄 Claimed — reading issue" (required)
-#   plan          Plan text (optional, default: "TBD")
-#   acs           ACs markdown (optional, default: "- [ ] (loading from issue)")
-#   validation    Validation status (optional, default: "pending")
-#   attempts      Build attempt count (optional, default: 1)
+#   status        One-line status, e.g. "🔄 Claimed — attempt 1" (required)
+#   body          Optional markdown body (ACs, validation, notes)
 #
-# Example:
-#   bash .claude/scripts/workpad-upsert.sh 42 "🔄 Claimed — reading issue"
-#   bash .claude/scripts/workpad-upsert.sh 42 "✅ Implementation complete" "Added auth middleware" "- [x] Token validated" "bun test: 45/45 pass" 2
-#
-# Run from the repo root (where gh is authenticated).
+# Examples:
+#   bash .claude/scripts/workpad-upsert.sh 42 "🔄 Claimed — attempt 1"
+#   bash .claude/scripts/workpad-upsert.sh 42 "✅ Complete — PR #55" "- [x] AC1\n- [x] AC2"
 set -euo pipefail
 
 ISSUE_NUMBER="${1:?'issue-number required'}"
 STATUS="${2:?'status required'}"
-PLAN="${3:-TBD}"
-ACS="${4:-- [ ] (loading from issue)}"
-VALIDATION="${5:-pending}"
-ATTEMPTS="${6:-1}"
-TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+BODY="${3:-}"
+TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%MZ")
 
-BODY="<!-- claudius:workpad -->
-**Workpad** · Updated: ${TIMESTAMP}
-**Status:** ${STATUS}
-**Attempts:** ${ATTEMPTS}
-**Plan:** ${PLAN}
-**ACs:**
-${ACS}
-**Validation:** ${VALIDATION}"
+if [ -n "$BODY" ]; then
+  COMMENT="<!-- claudius:workpad -->
+> ${STATUS} · ${TIMESTAMP}
 
-# Find existing workpad comment ID
-EXISTING=$(gh issue view "$ISSUE_NUMBER" --json comments \
-  --jq '[.comments[] | select(.body | contains("claudius:workpad"))] | last | .databaseId // empty' \
+${BODY}"
+else
+  COMMENT="<!-- claudius:workpad -->
+> ${STATUS} · ${TIMESTAMP}"
+fi
+
+# Find existing workpad comment ID — search ALL comments, take the last match
+EXISTING=$(gh api "repos/{owner}/{repo}/issues/${ISSUE_NUMBER}/comments" \
+  --paginate --jq '[.[] | select(.body | contains("claudius:workpad")) | .id] | last // empty' \
   2>/dev/null || echo "")
 
 if [ -n "$EXISTING" ]; then
-  gh api "repos/{owner}/{repo}/issues/comments/${EXISTING}" -X PATCH -f body="$BODY" >/dev/null
-  echo "Workpad updated on issue #${ISSUE_NUMBER} (comment ${EXISTING})"
+  gh api "repos/{owner}/{repo}/issues/comments/${EXISTING}" -X PATCH -f body="$COMMENT" >/dev/null
+  echo "Workpad updated on issue #${ISSUE_NUMBER}"
 else
-  gh issue comment "$ISSUE_NUMBER" --body "$BODY" >/dev/null
+  gh issue comment "$ISSUE_NUMBER" --body "$COMMENT" >/dev/null
   echo "Workpad created on issue #${ISSUE_NUMBER}"
 fi

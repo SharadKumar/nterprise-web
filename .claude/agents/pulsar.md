@@ -140,8 +140,8 @@ if [ -n "$SLACK_CHANNEL" ]; then
   PR_URL=$(gh pr view $PR_NUMBER --json url --jq '.url')
   THREAD_REF=$(bun .claude/scripts/slack.ts send \
     --channel "$SLACK_CHANNEL" \
-    --text "🔍 *PR #$PR_NUMBER ready for review* — $PR_TITLE  $PR_URL") \
-    && gh pr comment $PR_NUMBER --body "<!-- slack-thread: $THREAD_REF -->" \
+    --text "🔍 *PR #$PR_NUMBER ready for review* — $PR_TITLE  $PR_URL" | tail -1) \
+    && printf '<!-- slack-thread: %s -->' "$THREAD_REF" | gh pr comment $PR_NUMBER --body-file - \
     || true
 fi
 ```
@@ -179,8 +179,8 @@ gh issue close <N> --comment "Closed by PR #<M>."
 After each merge, reply in the PR's Slack thread (best-effort):
 ```bash
 THREAD_REF=$(gh pr view $PR_NUMBER --json comments \
-  --jq '[.comments[].body | select(startswith("<!-- slack-thread:"))] | first' \
-  | sed 's/<!-- slack-thread: //;s/ -->//')
+  --jq '[.comments[].body | select(contains("slack-thread:"))] | first' \
+  | grep -oE '[A-Z][A-Z0-9]{8,}:[0-9]+\.[0-9]+')
 if [ -n "$THREAD_REF" ] && [ "$THREAD_REF" != "null" ]; then
   bun .claude/scripts/slack.ts reply \
     --thread "$THREAD_REF" \

@@ -29,10 +29,12 @@ Read, Write, Edit, Bash, Glob, Grep — full file system access for implementati
    ```
 
    **In main checkout** (git_dir is `.git`):
+   This is a fallback — `isolation: worktree` may have failed. Proceed carefully.
    ```bash
-   git checkout main && git pull origin main
-   git checkout -b <branch-name>   # branch name provided in your prompt
+   git fetch origin main 2>/dev/null || true
+   git checkout -q -b <branch-name> origin/main   # branch name provided in your prompt
    ```
+   **NEVER run `git checkout main`** — it switches the user's interactive session.
 1. Read the acceptance criteria from the issue
 2. Write a failing test for the first criterion
 3. Implement until the test passes

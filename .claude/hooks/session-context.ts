@@ -13,7 +13,7 @@
 import { readFileSync, existsSync } from "node:fs";
 import { execSync } from "node:child_process";
 import { resolve } from "node:path";
-import { isProtectedBranch } from "../lib/workflow-config.ts";
+import { isProtectedBranch, isInWorktreePath } from "../lib/workflow-config.ts";
 
 export function getCurrentBranch(): string {
 	try {
@@ -31,12 +31,37 @@ function isHomeBranch(branch: string): boolean {
 	return isProtectedBranch(branch) || branch.startsWith("worktree-");
 }
 
+function detectInWorktree(): boolean {
+	const cwd = process.env.CLAUDE_PROJECT_DIR || process.cwd();
+	try {
+		const toplevel = execSync("git rev-parse --show-toplevel", {
+			cwd, encoding: "utf-8", stdio: ["pipe", "pipe", "pipe"],
+		}).trim();
+		const gitCommonDir = execSync("git rev-parse --git-common-dir", {
+			cwd, encoding: "utf-8", stdio: ["pipe", "pipe", "pipe"],
+		}).trim();
+		const projectDir = resolve(toplevel, gitCommonDir, "..");
+		return isInWorktreePath(toplevel, projectDir);
+	} catch {
+		return false;
+	}
+}
+
 /**
  * Returns a branch-state message to inject at session start.
  * Warning if on a protected/home branch, confirmation if on a feature branch.
+ *
+ * @param branch - The current git branch name
+ * @param inWorktree - Whether the session is running inside the owning worktree.
+ *   When true and branch is a worktree-* branch, emits a positive confirmation
+ *   instead of a warning (agent is in the right place, no feature branch needed).
  */
-export function getBranchWarning(branch: string): string {
+export function getBranchWarning(branch: string, inWorktree?: boolean): string {
 	if (branch === "unknown") return "";
+
+	if (branch.startsWith("worktree-") && inWorktree === true) {
+		return `✓ Current branch: \`${branch}\` (worktree) — commit and push from this branch directly. Do NOT create a feature branch.`;
+	}
 
 	if (isHomeBranch(branch)) {
 		return `⚠ BRANCH WARNING: You are on \`${branch}\` (a protected branch). You MUST create a feature branch before writing any files.\n\nRun this exact command first:\n\`\`\`\nrm -f .git/index.lock 2>/dev/null; git checkout -q -b feat/N-slug main\n\`\`\`\n\nDo NOT attempt Write, Edit, or Bash commits until you have created a feature branch.`;
@@ -59,7 +84,8 @@ function main() {
 	}
 
 	const branch = getCurrentBranch();
-	const branchWarning = getBranchWarning(branch);
+	const inWorktree = branch.startsWith("worktree-") ? detectInWorktree() : undefined;
+	const branchWarning = getBranchWarning(branch, inWorktree);
 
 	const parts = [personality, branchWarning].filter(Boolean);
 	if (parts.length === 0) return;

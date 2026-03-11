@@ -4,6 +4,7 @@ cron: "0 */4 * * *"
 enabled: true
 description: Convert approved Discussions to ready Issues
 timeout: 300
+guardrails: true
 allowedTools: Bash,Read,Glob,Grep
 maxTurns: 20
 ---

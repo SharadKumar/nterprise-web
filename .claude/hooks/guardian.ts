@@ -134,6 +134,17 @@ export function evaluate(
 			}
 		}
 
+		// Branch creation inside a worktree — block (defense-in-depth)
+		// Agents in worktrees must use the worktree branch, never create new ones.
+		if (onWorktree && inWorktree) {
+			if (cmd.match(/git\s+(checkout\s+-b|switch\s+-c)/)) {
+				return {
+					decision: "block",
+					reason: `Branch creation blocked inside worktree on ${branch}. Use the worktree branch directly — do not create feature branches inside worktrees.`,
+				};
+			}
+		}
+
 		// Worktree branch from inside the worktree — allow commits/pushes
 		if (onWorktree && inWorktree) {
 			return { decision: "approve" };

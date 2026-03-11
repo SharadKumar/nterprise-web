@@ -1,19 +1,24 @@
 #!/usr/bin/env bash
 # project-status.sh — Update Project #6 Status and Execution fields for an issue.
 #
-# Usage: bash .claude/scripts/project-status.sh <issue-number> <status> <execution>
+# Usage: bash .claude/scripts/project-status.sh <issue-number> <status> <execution> [repo]
 #
 # Status values:  Todo | "In Progress" | "Under Review" | Blocked
 # Execution values: Queued | Running | Review | Blocked
+# repo (optional): owner/repo — required when running outside a git repo (e.g. global dir)
 #
 # Both fields are updated atomically. Missing or invalid values are skipped silently.
 # All operations are best-effort — failures are logged but never fatal.
 
 set -euo pipefail
 
-ISSUE_NUMBER="${1:?Usage: project-status.sh <issue-number> <status> <execution>}"
+ISSUE_NUMBER="${1:?Usage: project-status.sh <issue-number> <status> <execution> [repo]}"
 STATUS="${2:?Missing status value}"
 EXECUTION="${3:?Missing execution value}"
+REPO_FLAG=""
+if [ -n "${4:-}" ]; then
+  REPO_FLAG="--repo $4"
+fi
 
 # --- Project #6 constants ---
 PROJECT_ID="PVT_kwHOAFO-EM4BRTW5"
@@ -39,7 +44,7 @@ case "$EXECUTION" in
 esac
 
 # Get issue URL
-ISSUE_URL=$(gh issue view "$ISSUE_NUMBER" --json url --jq '.url' 2>/dev/null || echo "")
+ISSUE_URL=$(gh issue view "$ISSUE_NUMBER" $REPO_FLAG --json url --jq '.url' 2>/dev/null || echo "")
 if [ -z "$ISSUE_URL" ]; then
   echo "[project-status] Could not find issue #$ISSUE_NUMBER" >&2
   exit 0
